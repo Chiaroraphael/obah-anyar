@@ -1,0 +1,12 @@
+node_modules
+dist
+dev-dist
+.env
+.env.*
+!.env.example
+public/mediapipe/wasm
+supabase/.temp
+supabase/.branches
+*.local
+test-results
+playwright-report

@@ -1,0 +1,85 @@
+# Konfigurasi Supabase lokal (supabase start). Proyek staging/prod diatur di dasbor
+# dengan nilai yang sama (region: Southeast Asia — Singapore).
+project_id = "obah-anyar"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed_katalog.sql", "./seed.sql"]
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173/auth/callback", "http://localhost:5173/setel-ulang-sandi", "https://*.vercel.app/auth/callback"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+enable_signup = true
+minimum_password_length = 8
+password_requirements = "letters_digits"
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+double_confirm_changes = true
+secure_password_change = true
+max_frequency = "60s"
+
+[auth.email.template.confirmation]
+subject = "Konfirmasi akun Obah Anyar"
+content_path = "./supabase/templates/konfirmasi.html"
+
+[auth.email.template.recovery]
+subject = "Setel ulang kata sandi Obah Anyar"
+content_path = "./supabase/templates/setel-ulang.html"
+
+[auth.email.template.invite]
+subject = "Undangan bergabung ke Obah Anyar"
+content_path = "./supabase/templates/undangan.html"
+
+# CAPTCHA bawaan Supabase Auth (Cloudflare Turnstile). Isi secret di env.
+[auth.captcha]
+enabled = false # set true di staging/prod
+provider = "turnstile"
+secret = "env(TURNSTILE_SECRET_KEY)"
+
+[auth.external.google]
+enabled = true
+client_id = "env(GOOGLE_CLIENT_ID)"
+secret = "env(GOOGLE_CLIENT_SECRET)"
+skip_nonce_check = false
+
+[edge_runtime]
+enabled = true
+policy = "per_worker"
+
+[functions.submit-test]
+verify_jwt = true
+[functions.publish-step]
+verify_jwt = true
+[functions.create-sanggar]
+verify_jwt = true
+[functions.join-sanggar]
+verify_jwt = true
+[functions.verify-sanggar]
+verify_jwt = true
+[functions.delete-account]
+verify_jwt = true
+[functions.export-my-data]
+verify_jwt = true
+[functions.report-content]
+verify_jwt = true
+[functions.moderate-name]
+verify_jwt = true
