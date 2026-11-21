@@ -61,7 +61,10 @@ export class PoseSmoother {
   private vis: number[] = [];
   private lastT: number | null = null;
 
-  reset() { this.f = []; this.vis = []; this.lastT = null; }
+  private jangkar: ({ x: number; y: number } | undefined)[] = [];
+  private lutut: ({ a: number; b: number } | undefined)[] = [];
+
+  reset() { this.f = []; this.vis = []; this.lastT = null; this.jangkar = []; this.lutut = []; }
 
   /** tMs: waktu cuplikan (ms). Mengembalikan salinan titik yang sudah dihaluskan. */
   push(lm: Landmark[] | undefined, tMs: number): Landmark[] | undefined {
@@ -70,7 +73,7 @@ export class PoseSmoother {
     if (dt > 0.3 || dt < 0) this.reset();
     this.lastT = tMs;
     const step = this.f.length ? dt : 0;
-    return lm.map((p, i) => {
+    const out = lm.map((p, i) => {
       if (!this.f[i]) {
         const [minCutoff, beta] = LUTUT_BAWAH.has(i) ? [0.35, 0.8] : KAKI.has(i) ? [0.6, 1.2] : [1.2, 2.5];
         this.f[i] = [new OneEuro(minCutoff, beta), new OneEuro(minCutoff, beta), new OneEuro(minCutoff, beta)];
@@ -82,5 +85,43 @@ export class PoseSmoother {
       const [fx, fy, fz] = this.f[i];
       return { x: fx.filter(p.x, step, samar), y: fy.filter(p.y, step, samar), z: fz.filter(p.z, step, samar), visibility: this.vis[i] };
     });
+    this.kunciKaki(out, step);
+    return out;
+  }
+
+  /**
+   * Telapak yang diam dikunci di tempat: titik baru ikut bergeser hanya bila menjauh lebih dari
+   * RADIUS_KUNCI dari posisi kunci. Lutut lalu dibangun ulang dari pinggul & pergelangan kaki,
+   * sehingga tidak "berjalan sendiri" saat kaki diam (lutut tertutup kain sering ditebak berubah-ubah).
+   */
+  private kunciKaki(lm: Landmark[], dt: number) {
+    if (lm.length < 33) return;
+    for (let i = 27; i <= 32; i++) {
+      const p = lm[i];
+      const a = this.jangkar[i];
+      if (!a || !dt) { this.jangkar[i] = { x: p.x, y: p.y }; continue; }
+      const dx = p.x - a.x, dy = p.y - a.y;
+      const d = Math.hypot(dx, dy);
+      if (d > RADIUS_KUNCI) { a.x += dx * (1 - RADIUS_KUNCI / d); a.y += dy * (1 - RADIUS_KUNCI / d); }
+      p.x = a.x; p.y = a.y;
+    }
+    for (const [h, k, a] of [[23, 25, 27], [24, 26, 28]] as const) {
+      const H = lm[h], K = lm[k], A = lm[a];
+      const vx = A.x - H.x, vy = A.y - H.y;
+      const L = Math.hypot(vx, vy);
+      if (L < 1e-4) continue;
+      const ux = vx / L, uy = vy / L, nx = -uy, ny = ux;
+      const ra = ((K.x - H.x) * ux + (K.y - H.y) * uy) / L;
+      const rb = ((K.x - H.x) * nx + (K.y - H.y) * ny) / L;
+      const prev = this.lutut[k];
+      const w = !prev || !dt ? 1 : 1 - Math.exp(-dt / 0.45); // ±0,45 detik
+      const cur = prev ? { a: prev.a + w * (ra - prev.a), b: prev.b + w * (rb - prev.b) } : { a: ra, b: rb };
+      this.lutut[k] = cur;
+      K.x = H.x + ux * cur.a * L + nx * cur.b * L;
+      K.y = H.y + uy * cur.a * L + ny * cur.b * L;
+    }
   }
 }
+
+/** Jarak (koordinat ternormalisasi) sebelum telapak yang dikunci ikut bergeser. */
+const RADIUS_KUNCI = 0.012;

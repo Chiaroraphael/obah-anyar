@@ -77,18 +77,46 @@ describe('penghalus pose langsung', () => {
   it('getaran kaki diredam, gerak badan tetap diikuti', () => {
     const s = new PoseSmoother();
     const base = syntheticStep('angkat-lengan').frames;
-    let mentah = 0, halus = 0, ikut = 0;
+    let mentah = 0, halus = 0, ikut = 0, sebelum = 0;
     base.forEach((f, k) => {
       const noise = (k % 2 ? 1 : -1) * 0.02;
       const lm = f.lm.map((p, i) => (i === 27 ? { ...p, x: p.x + noise } : p));
       const out = s.push(lm, f.t)!;
-      if (k > 10) { mentah += Math.abs(noise); halus += Math.abs(out[27].x - f.lm[27].x); ikut += Math.abs(out[15].y - f.lm[15].y); }
+      // getaran = perubahan antar-cuplikan (posisi kunci boleh bergeser maksimal sejauh radius kunci)
+      if (k > 10) { mentah += 0.04; halus += Math.abs(out[27].x - sebelum); ikut += Math.abs(out[15].y - f.lm[15].y); }
+      expect(Math.abs(out[27].x - f.lm[27].x)).toBeLessThan(0.03);
+      sebelum = out[27].x;
     });
-    expect(halus).toBeLessThan(mentah * 0.25);
+    expect(halus).toBeLessThan(mentah * 0.1);
     expect(ikut / (base.length - 11)).toBeLessThan(0.03);
   });
   it('reset saat penari hilang', () => {
     const s = new PoseSmoother();
     expect(s.push(undefined, 0)).toBeUndefined();
+  });
+});
+
+describe('kunci telapak & lutut stabil', () => {
+  it('telapak diam yang bergeser-geser kecil tetap di tempat; lutut tidak berkelana', () => {
+    const s = new PoseSmoother();
+    const f0 = syntheticStep('angkat-lengan').frames[0];
+    let geserKaki = 0, geserLutut = 0;
+    let prev: ReturnType<PoseSmoother['push']>;
+    for (let k = 0; k < 120; k++) {
+      const w = Math.sin(k / 7) * 0.008; // pengembaraan lambat, khas tebakan di balik kain
+      const lm = f0.lm.map((p, i) => (i === 27 ? { ...p, y: p.y + w } : i === 25 ? { ...p, x: p.x + w * 3, y: p.y + w * 2 } : p));
+      const out = s.push(lm, k * 33)!;
+      if (prev && k > 20) { geserKaki += Math.abs(out[27].y - prev[27].y); geserLutut += Math.hypot(out[25].x - prev[25].x, out[25].y - prev[25].y); }
+      prev = out;
+    }
+    expect(geserKaki).toBeLessThan(0.01);
+    expect(geserLutut).toBeLessThan(0.08);
+  });
+  it('langkah sungguhan tetap diikuti', () => {
+    const s = new PoseSmoother();
+    const f0 = syntheticStep('angkat-lengan').frames[0];
+    let out;
+    for (let k = 0; k < 90; k++) out = s.push(f0.lm.map((p, i) => (i === 27 ? { ...p, x: p.x + (k > 30 ? 0.1 : 0) } : p)), k * 33)!;
+    expect(out![27].x).toBeGreaterThan(f0.lm[27].x + 0.08);
   });
 });
