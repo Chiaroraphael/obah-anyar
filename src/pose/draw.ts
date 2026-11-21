@@ -34,7 +34,9 @@ export function drawSkeleton(ctx: CanvasRenderingContext2D, lm: Landmark[], w: n
   for (const [a, b] of BONES) {
     const p = lm[a];
     const q = lm[b];
-    if (!p || !q || (p.visibility ?? 1) < 0.3 || (q.visibility ?? 1) < 0.3) continue;
+    // tulang kaki yang samar (mis. tertutup kain) tidak digambar agar tidak tampak bergetar
+    const min = a >= 25 || b >= 25 ? 0.5 : 0.3;
+    if (!p || !q || (p.visibility ?? 1) < min || (q.visibility ?? 1) < min) continue;
     const seg = boneSegment(a, b);
     ctx.strokeStyle = opt.status && seg >= 0 ? STATUS_COLOR[opt.status[seg]] : opt.color ?? '#D4A23A';
     ctx.lineWidth = lw;
@@ -46,7 +48,7 @@ export function drawSkeleton(ctx: CanvasRenderingContext2D, lm: Landmark[], w: n
   ctx.fillStyle = opt.jointColor ?? '#F7F1E4';
   for (const i of [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]) {
     const p = lm[i];
-    if (!p || (p.visibility ?? 1) < 0.3) continue;
+    if (!p || (p.visibility ?? 1) < (i >= 25 ? 0.5 : 0.3)) continue;
     ctx.beginPath();
     ctx.arc(X(p.x), p.y * h, i === 0 ? lw * 2.4 : lw * 0.9, 0, Math.PI * 2);
     ctx.fill();

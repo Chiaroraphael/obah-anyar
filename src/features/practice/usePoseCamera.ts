@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadLandmarker, type PoseDetector } from '../../pose/landmarker';
-import { readiness as checkReadiness, type Readiness } from '../../pose/tracker';
+import { PoseSmoother, readiness as checkReadiness, type Readiness } from '../../pose/tracker';
 import { drawSkeleton } from '../../pose/draw';
 import type { Landmark, SegmentStatus } from '../../pose/types';
 import { POSE_MODEL } from '../../lib/supabase';
@@ -41,6 +41,7 @@ export function usePoseCamera(posture: 'berdiri' | 'duduk' = 'berdiri') {
     let lastFpsAt = performance.now();
     let lastReady: Readiness | null = null;
     let lastPeople = -1;
+    const smoother = new PoseSmoother();
     const tick = () => {
       rafRef.current = requestAnimationFrame(tick);
       const v = videoRef.current;
@@ -50,7 +51,9 @@ export function usePoseCamera(posture: 'berdiri' | 'duduk' = 'berdiri') {
       const now = performance.now();
       let poses: Landmark[][] = [];
       try { poses = det.detect(v, now); } catch { return; }
-      const main = poses[0];
+      // haluskan penari utama (titik mentah MediaPipe bergetar, terutama kaki)
+      const main = smoother.push(poses[0], now);
+      if (main) poses = [main, ...poses.slice(1)];
       latestRef.current = main;
       const r = checkReadiness(main, posture);
       if (r !== lastReady) { lastReady = r; setReady(r); }

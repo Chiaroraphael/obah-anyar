@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { compareSequences, frameSimilarity, PASS_SCORE } from './compare';
 import { buildTips } from './feedback';
 import { mirrorFrame, tekukLutut } from './features';
-import { readiness } from './tracker';
+import { PoseSmoother, readiness } from './tracker';
 import { countAt } from './session';
 import { buildPose, syntheticStep } from '../lib/synthetic';
 
@@ -70,5 +70,25 @@ describe('tekukan lutut dari pinggul–pergelangan kaki (lutut tertutup kain)', 
     const r = compareSequences(mendhak.frames, tegak, mendhak.counts, 0.75);
     expect(r.score).toBeLessThan(compareSequences(mendhak.frames, mendhak.frames, mendhak.counts, 0.75).score);
     expect(buildTips(r).some((t) => t.key.startsWith('tekuk_lutut') && t.text.includes('lebih dalam'))).toBe(true);
+  });
+});
+
+describe('penghalus pose langsung', () => {
+  it('getaran kaki diredam, gerak badan tetap diikuti', () => {
+    const s = new PoseSmoother();
+    const base = syntheticStep('angkat-lengan').frames;
+    let mentah = 0, halus = 0, ikut = 0;
+    base.forEach((f, k) => {
+      const noise = (k % 2 ? 1 : -1) * 0.02;
+      const lm = f.lm.map((p, i) => (i === 27 ? { ...p, x: p.x + noise } : p));
+      const out = s.push(lm, f.t)!;
+      if (k > 10) { mentah += Math.abs(noise); halus += Math.abs(out[27].x - f.lm[27].x); ikut += Math.abs(out[15].y - f.lm[15].y); }
+    });
+    expect(halus).toBeLessThan(mentah * 0.25);
+    expect(ikut / (base.length - 11)).toBeLessThan(0.03);
+  });
+  it('reset saat penari hilang', () => {
+    const s = new PoseSmoother();
+    expect(s.push(undefined, 0)).toBeUndefined();
   });
 });
